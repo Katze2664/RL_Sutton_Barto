@@ -60,7 +60,6 @@ class Agent:
         if random.random() < self.eps:
             # Explore
             action = random.randrange(self.k)
-            print(self.name, "explore", action)
         else:
             # Greedy
             action = np.argmax(self.action_value)
@@ -72,51 +71,62 @@ class Agent:
         self.action_value = [self.default_value] * self.k
         self.cumu_reward = 0
 
+# %%
+def run_simulation(k, max_rollouts, max_time_steps, environment, agents):
+    cumu_reward_results = {agent.name: np.zeros((max_rollouts, max_time_steps)) for agent in agents}
+    optimal_action_results = {agent.name: np.zeros((max_rollouts, max_time_steps)) for agent in agents}
 
+    for rollout in range(max_rollouts):
+        environment.reset()
+        for agent in agents:
+            agent.reset()
+
+        for time_step in range(max_time_steps):
+            for agent in agents:           
+                action = agent.select_eps_greedy_action()
+                reward = environment.reward(action)
+                agent.receive_reward(action, reward)
+
+                cumu_reward_results[agent.name][rollout, time_step] = agent.cumu_reward
+                if action == environment.optimal_action:
+                    optimal_action_results[agent.name][rollout, time_step] = 1
+    
+    return cumu_reward_results, optimal_action_results
 # %%
 k = 10  # Number of actions the Agent can choose from
-max_rollouts = 2  # Number of rollouts. Each rollout the Agent and Environment are reset
-max_time_steps = 5  # Number of time steps per rollout
+max_rollouts = 2000  # Number of rollouts. Each rollout the Agent and Environment are reset
+max_time_steps = 1000  # Number of time steps per rollout
 
-env = Environment(k)
-agent10_0 = Agent("agent10_0", k, eps=0.1, default_value=0)
-agent50_0 = Agent("agent50_0", k, eps=0.5, default_value=0)
-agents = [agent10_0, agent50_0]
+environment = Environment(k)
+agent00_0 = Agent("agent00_0", k, eps=0.00, default_value=0)
+agent10_0 = Agent("agent01_0", k, eps=0.01, default_value=0)
+agent50_0 = Agent("agent10_0", k, eps=0.10, default_value=0)
+agents = [agent00_0, agent10_0, agent50_0]
 
-cumu_reward_results = {agent.name: np.zeros((max_rollouts, max_time_steps)) for agent in agents}
-optimal_action_results = {agent.name: np.zeros((max_rollouts, max_time_steps)) for agent in agents}
+cumu_reward_results, optimal_action_results = run_simulation(k, max_rollouts, max_time_steps, environment, agents)
+# %%
+colors = ["green", "red", "blue"]
 
-for rollout in range(max_rollouts):
-    env.reset()
-    for agent in agents:
-        agent.reset()
+for agent_name, cumu_reward in cumu_reward_results.items():
+    reward_time_mean = cumu_reward / (np.arange(max_time_steps) + 1)
+    reward_rollout_mean = reward_time_mean.mean(axis=0)
+    reward_rollout_std = reward_time_mean.std(axis=0, ddof=1)
+    
+    print(agent_name, reward_rollout_mean[-1])
+    color = colors.pop(0)
+    plt.plot(reward_rollout_mean, label=agent_name, color=color)
+    # plt.errorbar(np.arange(max_time_steps), reward_rollout_mean, reward_rollout_std, label=agent_name, color=color)
 
-    for time_step in range(max_time_steps):
-        for agent in agents:           
-            action = agent.select_eps_greedy_action()
-            reward = env.reward(action)
+plt.legend()
+plt.show()
+# %%
+colors = ["green", "red", "blue"]
+for agent_name, optimal_action in optimal_action_results.items():
+    color = colors.pop(0)
+    optimal_rollout_average = optimal_action.mean(axis=0)
+    plt.plot(optimal_rollout_average, label=agent_name, color=color)
 
-            print((f"rollout= {rollout}\n"
-                   f"time=    {time_step}\n"
-                   f"name=    {agent.name}\n"
-                   f"sum      {np.round(agent.action_value_sum, 2)}\n"
-                   f"count    {agent.action_count}\n"
-                   f"value    {np.round(agent.action_value, 2)}\n"
-                   f"q_star   {np.round(env.q_star, 2)}\n"
-                   f"action   {action}\n"
-                   f"optimal  {env.optimal_action}\n"
-                   f"reward   {np.round(reward, 2)}"))
-
-            agent.receive_reward(action, reward)
-
-            cumu_reward_results[agent.name][rollout, time_step] = agent.cumu_reward
-            if action == env.optimal_action:
-                optimal_action_results[agent.name][rollout, time_step] = 1
-            print(np.round(cumu_reward_results[agent.name], 2))
-            print(optimal_action_results[agent.name], "\n")
-
-
-
-
+plt.legend()
+plt.show()
 
 # %%
