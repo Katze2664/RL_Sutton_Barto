@@ -42,18 +42,24 @@ class Agent:
     the action with the smallest index is chosen. Actions that have never been
     sampled are estimated to have default_value."""
     
-    def __init__(self, name, k, eps=0, default_value=0):
+    def __init__(self, name, k, eps=0, default_value=0, stepsize=None):
         self.name = name
         self.k = k
         self.eps = eps
         self.default_value = default_value
+        if stepsize is None:
+            self.stepsize = lambda action_count: 1 / action_count  # Equivalent to equal-weight sample averaging
+        else:
+            self.stepsize = stepsize
 
         self.reset()
 
     def receive_reward(self, action, reward):
-        self.action_count[action] += 1
-        self.action_value_sum[action] += reward
-        self.action_value[action] = self.action_value_sum[action] / self.action_count[action]
+        self.action_counts[action] += 1
+        n = self.action_counts[action]
+        q = self.action_values[action]
+        self.action_values[action] += self.stepsize(n) * (reward - q)
+
         self.cumu_reward += reward
 
     def select_eps_greedy_action(self):
@@ -62,13 +68,12 @@ class Agent:
             action = random.randrange(self.k)
         else:
             # Greedy
-            action = np.argmax(self.action_value)
+            action = np.argmax(self.action_values)
         return action
 
     def reset(self):
-        self.action_count = [0] * self.k
-        self.action_value_sum = [0] * self.k
-        self.action_value = [self.default_value] * self.k
+        self.action_counts = [0] * self.k
+        self.action_values = [self.default_value] * self.k
         self.cumu_reward = 0
 
 # %%
@@ -98,14 +103,22 @@ max_rollouts = 2000  # Number of rollouts. Each rollout the Agent and Environmen
 max_time_steps = 1000  # Number of time steps per rollout
 
 environment = Environment(k)
-agent00_0 = Agent("agent00_0", k, eps=0.00, default_value=0)
-agent10_0 = Agent("agent01_0", k, eps=0.01, default_value=0)
-agent50_0 = Agent("agent10_0", k, eps=0.10, default_value=0)
-agents = [agent00_0, agent10_0, agent50_0]
+# agent00_0 = Agent("agent00_0", k, eps=0.00, default_value=0)
+# agent01_0 = Agent("agent01_0", k, eps=0.01, default_value=0)
+agent10_0 = Agent("agent10_0", k, eps=0.10, default_value=0)
+# erwa = exponential recency-weighted averaging
+agent10_0_erwa01 = Agent("agent10_0_erwa01", k, eps=0.10, default_value=0, stepsize=lambda n: 0.01)
+agent10_0_erwa05 = Agent("agent10_0_erwa05", k, eps=0.10, default_value=0, stepsize=lambda n: 0.05)
+agent10_0_erwa20 = Agent("agent10_0_erwa20", k, eps=0.10, default_value=0, stepsize=lambda n: 0.20)
+agent10_0_erwa50 = Agent("agent10_0_erwa50", k, eps=0.10, default_value=0, stepsize=lambda n: 0.50)
+agent10_0_erwa100 = Agent("agent10_0_erwa100", k, eps=0.10, default_value=0, stepsize=lambda n: 1.00)
+agents = [agent10_0, agent10_0_erwa01, agent10_0_erwa05, agent10_0_erwa20, agent10_0_erwa50, agent10_0_erwa100]
+
 
 cumu_reward_results, optimal_action_results = run_simulation(k, max_rollouts, max_time_steps, environment, agents)
 # %%
-colors = ["green", "red", "blue"]
+colors = ["green", "red", "blue", "purple", "orange", "brown"]
+color_idx = 0
 
 for agent_name, cumu_reward in cumu_reward_results.items():
     reward_time_mean = cumu_reward / (np.arange(max_time_steps) + 1)
@@ -113,16 +126,18 @@ for agent_name, cumu_reward in cumu_reward_results.items():
     reward_rollout_std = reward_time_mean.std(axis=0, ddof=1)
     
     print(agent_name, reward_rollout_mean[-1])
-    color = colors.pop(0)
+    color = colors[color_idx]
+    color_idx += 1
     plt.plot(reward_rollout_mean, label=agent_name, color=color)
     # plt.errorbar(np.arange(max_time_steps), reward_rollout_mean, reward_rollout_std, label=agent_name, color=color)
 
 plt.legend()
 plt.show()
 # %%
-colors = ["green", "red", "blue"]
+color_idx = 0
 for agent_name, optimal_action in optimal_action_results.items():
-    color = colors.pop(0)
+    color = colors[color_idx]
+    color_idx += 1
     optimal_rollout_average = optimal_action.mean(axis=0)
     plt.plot(optimal_rollout_average, label=agent_name, color=color)
 
