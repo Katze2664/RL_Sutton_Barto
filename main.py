@@ -3,8 +3,27 @@
 import random
 import numpy as np
 from matplotlib import pyplot as plt
+from abc import ABC, abstractmethod
 
-class Environment:
+class Environment(ABC):
+
+    @abstractmethod
+    def __init__(self, **kwargs):
+        pass
+    
+    @abstractmethod
+    def output_observation(self, agent_name):
+        pass
+    
+    @abstractmethod
+    def receive_action(self, agent_name, action):
+        pass
+
+    @abstractmethod
+    def reset(self):
+        pass
+
+class EnvironmentBandit(Environment):
     """Creates a k-bandit environment.
     
     Environment contains only 1 state, in which there are k choices for actions.
@@ -16,24 +35,15 @@ class Environment:
     """
 
     def __init__(self, k=10, q_star_mean=0, q_star_std=1, reward_std=1):
-        self.k = k
-        self.q_star_mean = q_star_mean
-        self.q_star_std = q_star_std
-        self.reward_std = reward_std
-
-        self.reset()
+        init_bandit(self, k=10, q_star_mean=0, q_star_std=1, reward_std=1)
 
     def output_observation(self, agent_name):
-        state_observable = 0
-        if agent_name not in self.actions_received:
-            reward = None
-            return state_observable, reward
-        
-        action = self.actions_received[agent_name]
-        mean = self.state_internal[action]
-        reward = random.gauss(mean, self.reward_std)
+        state_observable, reward = output_observation_bandit(agent_name,
+                                         self.actions_received,
+                                         self.state_internal,
+                                         self.reward_std)
         return state_observable, reward
-    
+
     def receive_action(self, agent_name, action):
         self.actions_received[agent_name] = action
 
@@ -43,13 +53,36 @@ class Environment:
 
         for i in range(self.k):
             self.state_internal.append(random.gauss(self.q_star_mean, self.q_star_std))
-
-    def output_action_optimal(self):
-        action_optimal = np.argmax(self.state_internal)
-        return action_optimal
     
     def output_state_internal(self):
         return self.state_internal
+    
+    def output_action_optimal(self):
+        action_optimal = np.argmax(self.state_internal)
+        return action_optimal
+
+def init_bandit(self, **kwargs):
+        self.k = kwargs["k"]
+        self.q_star_mean = kwargs["q_star_mean"]
+        self.q_star_std = kwargs["q_star_std"]
+        self.reward_std = kwargs["reward_std"]
+
+        self.reset()
+
+def output_observation_bandit(agent_name,
+                              actions_received,
+                              state_internal,
+                              reward_std):
+    state_observable = 0
+    if agent_name not in actions_received:
+        reward = None
+        return state_observable, reward
+    
+    action = actions_received[agent_name]
+    mean = state_internal[action]
+    reward = random.gauss(mean, reward_std)
+    return state_observable, reward
+
 
 # %%
 class Agent:
@@ -128,10 +161,10 @@ def run_simulation(max_rollouts, max_time_steps, environment, agents):
     return cumu_reward_results, optimal_action_results
 # %%
 k = 10  # Number of actions the Agent can choose from
-max_rollouts = 2000  # Number of rollouts. Each rollout the Agent and Environment are reset
+max_rollouts = 200  # Number of rollouts. Each rollout the Agent and Environment are reset
 max_time_steps = 1000  # Number of time steps per rollout
 
-environment = Environment(k)
+environment = EnvironmentBandit(k)
 agent00_0 = Agent("agent00_0", k, eps=0.00, default_value=0)
 agent01_0 = Agent("agent01_0", k, eps=0.01, default_value=0)
 agent10_0 = Agent("agent10_0", k, eps=0.10, default_value=0)

@@ -2,7 +2,7 @@
 import random
 import numpy as np
 from matplotlib import pyplot as plt
-from main import Environment
+from main import EnvironmentBandit
 
 def plot_sampled_rewards(num_samples=5,
                          k=10,
@@ -18,7 +18,7 @@ def plot_sampled_rewards(num_samples=5,
     distributed around the long term mean with standard deviation of reward_std."""
     
     random.seed(seed)
-    environment = Environment(k, q_star_mean, q_star_std, reward_std)
+    environment = EnvironmentBandit(k, q_star_mean, q_star_std, reward_std)
 
     agent_name = "dummy_agent"
     sampled_rewards = []
@@ -51,12 +51,12 @@ def mean_maximum_q_star(num_samples=1000,
     q_star_std."""
 
     random.seed(seed)
-    env = Environment(k, q_star_mean, q_star_std)
+    environment = EnvironmentBandit(k, q_star_mean, q_star_std)
 
     max_q_stars = []
     for i in range(num_samples):
-        max_q_stars.append(max(env.state_internal))
-        env.reset()
+        max_q_stars.append(max(environment.output_state_internal()))
+        environment.reset()
     mean = sum(max_q_stars) / num_samples
     return mean
     
