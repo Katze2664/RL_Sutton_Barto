@@ -49,7 +49,7 @@ class EnvironmentBandit(Environment):
             return state_observable, reward
         
         action = self.actions_received[agent_name]
-        mean = self.state_internal[action]
+        mean = self.state_internal["q_star"][action]
         reward = random.gauss(mean, self.reward_std)
         return state_observable, reward
 
@@ -58,16 +58,16 @@ class EnvironmentBandit(Environment):
 
     def reset(self):
         self.actions_received = {}
-        self.state_internal = []  # List of mean reward for each action (a.k.a. q_star)
+        self.state_internal = {"q_star": []}  # List of mean reward for each action (a.k.a. q_star)
 
         for i in range(self.k):
-            self.state_internal.append(random.gauss(self.q_star_mean, self.q_star_std))
+            self.state_internal["q_star"].append(random.gauss(self.q_star_mean, self.q_star_std))
     
     def output_state_internal(self):
         return self.state_internal
     
     def output_action_optimal(self):
-        action_optimal = np.argmax(self.state_internal)
+        action_optimal = np.argmax(self.state_internal["q_star"])
         return action_optimal
 
 
