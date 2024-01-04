@@ -18,19 +18,23 @@ def plot_sampled_rewards(num_samples=5,
     distributed around the long term mean with standard deviation of reward_std."""
     
     random.seed(seed)
-    env = Environment(k, q_star_mean, q_star_std, reward_std)
+    environment = Environment(k, q_star_mean, q_star_std, reward_std)
 
+    agent_name = "dummy_agent"
     sampled_rewards = []
     for action in range(k):
         sampled_rewards.append([])
         for i in range(num_samples):
-            sampled_rewards[action].append(env.reward(action))
+            environment.receive_action(agent_name, action)
+            state_observed, reward = environment.output_observation(agent_name)
+            sampled_rewards[action].append(reward)
 
     for action, rewards in enumerate(sampled_rewards):
-        plt.plot([action-0.3, action+0.3], [env.q_star[action]]*2)
+        state_internal = environment.output_state_internal()
+        plt.plot([action-0.3, action+0.3], [state_internal[action]]*2)  # [state]*2 duplicates y-coordinate
         plt.plot([action]*num_samples, sampled_rewards[action], "o")
     plt.show()
-    return env.q_star, sampled_rewards
+    return state_internal, sampled_rewards
 # %%
 q_star, sampled_rewards = plot_sampled_rewards()
 print("q_star", q_star)
@@ -51,7 +55,7 @@ def mean_maximum_q_star(num_samples=1000,
 
     max_q_stars = []
     for i in range(num_samples):
-        max_q_stars.append(max(env.q_star))
+        max_q_stars.append(max(env.state_internal))
         env.reset()
     mean = sum(max_q_stars) / num_samples
     return mean
