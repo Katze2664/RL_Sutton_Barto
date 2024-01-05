@@ -31,16 +31,16 @@ def plot_sampled_rewards(num_samples=5,
 
     for action, rewards in enumerate(sampled_rewards):
         state_internal = environment.output_state_internal()
-        plt.plot([action-0.3, action+0.3], [state_internal["q_star"][action]]*2)  # [state]*2 duplicates y-coordinate
+        plt.plot([action-0.3, action+0.3], [state_internal["q_stars"][action]]*2)  # [state]*2 duplicates y-coordinate
         plt.plot([action]*num_samples, sampled_rewards[action], "o")
     plt.show()
     return state_internal, sampled_rewards
 # %%
 state_internal, sampled_rewards = plot_sampled_rewards()
-q_star = state_internal["q_star"]
-print("q_star", q_star)
-for i, q_star in enumerate(q_star):
-    print(q_star, sampled_rewards[i])
+q_stars = state_internal["q_stars"]
+print("q_stars", q_stars)
+for i, q_stars in enumerate(q_stars):
+    print(q_stars, sampled_rewards[i])
 # %%
 def mean_maximum_q_star(num_samples=1000, 
                         k=10,
@@ -57,8 +57,8 @@ def mean_maximum_q_star(num_samples=1000,
     max_q_stars = []
     for i in range(num_samples):
         state_internal = environment.output_state_internal()
-        q_star = state_internal["q_star"]
-        max_q_stars.append(max(q_star))
+        q_stars = state_internal["q_stars"]
+        max_q_stars.append(max(q_stars))
         environment.reset()
     mean = sum(max_q_stars) / num_samples
     return mean
