@@ -236,7 +236,7 @@ def run_simulation(max_rollouts, max_time_steps, environment, agents):
         assert agent.name not in name_set, "Agent names must be unique"
         name_set.add(agent.name)
 
-    cumu_reward_results = {agent.name: np.zeros((max_rollouts, max_time_steps)) for agent in agents}
+    reward_results = {agent.name: np.zeros((max_rollouts, max_time_steps)) for agent in agents}
     optimal_action_results = {agent.name: np.zeros((max_rollouts, max_time_steps)) for agent in agents}
     
     for rollout in range(max_rollouts):
@@ -250,16 +250,16 @@ def run_simulation(max_rollouts, max_time_steps, environment, agents):
                 agent_name = agent.name
                 state_observed, reward = environment.output_observation(agent_name)
                 agent.receive_observation(state_observed, reward)
-                
+
                 if time_step > 0:
-                    cumu_reward_results[agent.name][rollout, time_step] = cumu_reward_results[agent.name][rollout, time_step - 1] + reward
+                    reward_results[agent.name][rollout, time_step] = reward
                 
                 action = agent.output_action()
                 environment.receive_action(agent_name, action)
                 
                 if action == environment.output_action_optimal():
                     optimal_action_results[agent.name][rollout, time_step] = 1
-    return cumu_reward_results, optimal_action_results
+    return reward_results, optimal_action_results
 # %%
 k = 10  # Number of actions the Agent can choose from
 max_rollouts = 200  # Number of rollouts. Each rollout the Agent and Environment are reset
@@ -282,20 +282,19 @@ agents = [agent00_0, agent01_0, agent10_0]
 # agents = [agent10_0, agent10_0_erwa01, agent10_0_erwa05, agent10_0_erwa20, agent10_0_erwa50, agent10_0_erwa100]
 
 
-cumu_reward_results, optimal_action_results = run_simulation(max_rollouts, max_time_steps, environment, agents)
+reward_results, optimal_action_results = run_simulation(max_rollouts, max_time_steps, environment, agents)
 # %%
 colors = ["green", "red", "blue", "purple", "orange", "brown"]
 color_idx = 0
 
-for agent_name, cumu_reward in cumu_reward_results.items():
-    reward_time_mean = cumu_reward / (np.arange(max_time_steps) + 1) # TODO: Convert to reward-per-step rather than time-averaged cumulative reward
-    reward_rollout_mean = reward_time_mean.mean(axis=0)
-    reward_rollout_std = reward_time_mean.std(axis=0, ddof=1)
+for agent_name, rewards in reward_results.items():
+    reward_mean = rewards.mean(axis=0)  # Averaged over rollouts
+    reward_std = rewards.std(axis=0, ddof=1)
     
-    print(agent_name, reward_rollout_mean[-1])
+    print(agent_name, reward_mean[-1])
     color = colors[color_idx]
     color_idx += 1
-    plt.plot(reward_rollout_mean, label=agent_name, color=color)
+    plt.plot(reward_mean, label=agent_name, color=color)
     # plt.errorbar(np.arange(max_time_steps), reward_rollout_mean, reward_rollout_std, label=agent_name, color=color)
 
 plt.legend()
