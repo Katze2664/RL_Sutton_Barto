@@ -163,9 +163,10 @@ class ActionValuer(ABC):
         pass
 
 class SampleAverager(ActionValuer):
-    def __init__(self, k, default_value=0, calc_stepsize=None):
+    def __init__(self, k, default_value=0, calc_stepsize=None, overwrite_default=False):
         self.k = k
         self.default_value = default_value
+        self.overwrite_default = overwrite_default
         if calc_stepsize is None:
             self.calc_stepsize = lambda action_count: 1 / action_count  # Equivalent to equal-weight sample averaging
         else:
@@ -177,10 +178,14 @@ class SampleAverager(ActionValuer):
             self.set_default_values(state)
 
         if action is not None:
-            self.action_counts[state][action] += 1
-            n = self.action_counts[state][action]
-            q = self.action_values[state][action]
-            self.action_values[state][action] += self.calc_stepsize(n) * (reward - q)
+            if self.action_counts[state][action] == 0 and self.overwrite_default:
+                self.action_counts[state][action] += 1
+                self.action_values[state][action] = reward
+            else:
+                self.action_counts[state][action] += 1
+                n = self.action_counts[state][action]
+                q = self.action_values[state][action]
+                self.action_values[state][action] += self.calc_stepsize(n) * (reward - q)
 
     def output_action_values(self, state=None, action=None):
         return super().output_action_values(state, action)
@@ -231,83 +236,166 @@ class EpsilonGreedy(Policy):
 
 # %%
 def run_simulation(max_rollouts, max_time_steps, environment, agents):
-    name_set = set()
+    agent_names = []
     for agent in agents:
-        assert agent.name not in name_set, "Agent names must be unique"
-        name_set.add(agent.name)
+        assert agent.name not in agent_names, "Agent names must be unique"
+        agent_names.append(agent.name)
 
-    reward_results = {agent.name: np.zeros((max_rollouts, max_time_steps)) for agent in agents}
-    optimal_action_results = {agent.name: np.zeros((max_rollouts, max_time_steps)) for agent in agents}
+    results = {}
+    agent_categories = [("rewards", (max_rollouts, max_time_steps)),
+                        ("actions", (max_rollouts, max_time_steps)),
+                        ("optimal_actions", (max_rollouts, max_time_steps)),
+                        ("action_values", (max_rollouts, max_time_steps, k))]
     
+    environment_categories = [("q_stars", (max_rollouts, max_time_steps, k))]
+
+    for category_name, category_shape in agent_categories:
+        results[category_name] = {agent_name: np.zeros(category_shape) for agent_name in agent_names}
+    
+    for category_name, category_shape in environment_categories:
+        results[category_name] = {"environment": np.zeros(category_shape) for agent_name in agent_names}
+
     for rollout in range(max_rollouts):
         environment.reset()
         for agent in agents:
+            agent_name = agent.name
             agent.reset()
 
         for time_step in range(max_time_steps):
             environment.update_time_step(time_step)
+            results["q_stars"]["environment"][rollout, time_step] = environment.output_state_internal()["q_stars"]
+
             for agent in agents:
                 agent_name = agent.name
                 state_observed, reward = environment.output_observation(agent_name)
                 agent.receive_observation(state_observed, reward)
 
+                results["action_values"][agent_name][rollout, time_step] = agent.output_action_values(state=state_observed)
+
                 if time_step > 0:
-                    reward_results[agent.name][rollout, time_step] = reward
+                    results["rewards"][agent_name][rollout, time_step] = reward
                 
                 action = agent.output_action()
                 environment.receive_action(agent_name, action)
                 
+                results["actions"][agent_name][rollout, time_step] = action
                 if action == environment.output_action_optimal():
-                    optimal_action_results[agent.name][rollout, time_step] = 1
-    return reward_results, optimal_action_results
+                    results["optimal_actions"][agent_name][rollout, time_step] = 1
+    return results
+
+def plot_rollout_mean(results, category_name, colors=["green", "red", "blue", "purple", "orange", "brown"]):
+    color_idx = 0
+
+    for agent_name, arr in results[category_name].items():
+        arr_mean = arr.mean(axis=0)  # Averaged over rollouts
+        color = colors[color_idx]
+        color_idx += 1
+        plt.plot(arr_mean, label=agent_name, color=color)
+
+        # arr_std = arr.std(axis=0, ddof=1)
+        # plt.errorbar(np.arange(max_time_steps), reward_mean, reward_std, label=agent_name, color=color)
+
+    plt.legend()
+    plt.title(category_name)
+    plt.show()
+
+def plot_action_values(results, agent_name, rollout, x_min=None, x_max=None, y_min=None, y_max=None, colors=["red", "orange", "olive", "green", "blue", "purple", "cyan", "pink", "brown", "grey"]):
+    q_stars = results["q_stars"]["environment"][rollout]
+    action_values = results["action_values"][agent_name][rollout]
+    assert q_stars.shape == action_values.shape
+    assert len(q_stars.shape) == 2
+    max_time_steps, k = q_stars.shape
+
+    color_idx = 0
+    for col in range(k):
+        plt.plot(q_stars[:, col], color=colors[color_idx], linewidth=1)
+        color_idx += 1
+
+    color_idx = 0
+    for col in range(k):
+        plt.plot(action_values[:, col], color=colors[color_idx], linewidth=2, label=col)
+        color_idx += 1
+    plt.legend(bbox_to_anchor=(1, 1), loc="upper left")
+    plt.title(label=f"{agent_name}, rollout: {rollout}")
+    if x_min is not None:
+        plt.xlim(left=x_min)
+    if x_max is not None:
+        plt.xlim(right=x_max)
+    if y_min is not None:
+        plt.ylim(bottom=y_min)
+    if y_max is not None:
+        plt.ylim(top=y_max)
+    plt.show()
+
+
 # %%
 k = 10  # Number of actions the Agent can choose from
 max_rollouts = 200  # Number of rollouts. Each rollout the Agent and Environment are reset
-max_time_steps = 1000  # Number of time steps per rollout
+max_time_steps = 2000  # Number of time steps per rollout
 
+# %%
+# Independent variable: eps
 environment = EnvironmentBandit(k)
-# environment = EnvironmentBanditNonstationary(rand_walk_std=0.1, k=k)
 agent00_0 = AgentActionValuerPolicy("agent00_0", SampleAverager(k, default_value=0), EpsilonGreedy(eps=0))
 agent01_0 = AgentActionValuerPolicy("agent01_0", SampleAverager(k, default_value=0), EpsilonGreedy(eps=0.01))
 agent10_0 = AgentActionValuerPolicy("agent10_0", SampleAverager(k, default_value=0), EpsilonGreedy(eps=0.10))
 agents = [agent00_0, agent01_0, agent10_0]
-# agents = [agent10_0]
 
+results1 = run_simulation(max_rollouts, max_time_steps, environment, agents)
+# Textbook graphs at t=1000: Green = 1.05, Red = 1.31, Blue = 1.41
+
+plot_rollout_mean(results1, "rewards")
+plot_rollout_mean(results1, "optimal_actions")
+plot_action_values(results1, "agent00_0", 0)
+plot_action_values(results1, "agent01_0", 0)
+plot_action_values(results1, "agent10_0", 0)
+
+# %%
+
+# Independent variable: default_value
+
+# Using an infinite default value (with overwrite on the first sample) forces it to explore every action once before
+# acting greedily. Using a high finite default value (without overwrite, and stepsize=1/(n+1) so that the default value
+# acts as the first sample) causes it to explore every action multiple times until the samples outweigh the default
+# value. If the default value is too high then exploration of poor actions persists for too long. If the default value
+# is too low then the first high reward terminates exploration.
+
+environment = EnvironmentBandit(k)
+agent00_0 = AgentActionValuerPolicy("agent00_0", SampleAverager(k, default_value=0), EpsilonGreedy(eps=0))
+agent00_inf = AgentActionValuerPolicy("agent00_inf", SampleAverager(k, default_value=np.inf, overwrite_default=True), EpsilonGreedy(eps=0))
+agent00_10 = AgentActionValuerPolicy("agent00_10", SampleAverager(k, default_value=10, calc_stepsize=lambda count: 1 / (count + 1)), EpsilonGreedy(eps=0))
+agents = [agent00_0, agent00_inf, agent00_10]
+
+results2 = run_simulation(max_rollouts, max_time_steps, environment, agents)
+
+plot_rollout_mean(results2, "rewards")
+plot_rollout_mean(results2, "optimal_actions")
+plot_action_values(results2, "agent00_0", rollout=0)
+plot_action_values(results2, "agent00_inf", rollout=0)
+plot_action_values(results2, "agent00_10", rollout=0)
+
+# %% 
+
+# Independent variables: eps, calc_stepsize
+
+# The environment is non-stationary (q_star values perform a random walk). Compared to an equally-weighted sample
+# average (stepsize = 1/n), an exponential recency-weighted sample average (stepsize = constant) adapts more slowly
+# initially, but over longer time horizons it is able to adapt more quickly to a non-stationary target. Though it is
+# susceptible to overcorrection with noisy reward signals for stationary targets.
+
+environment = EnvironmentBanditNonstationary(rand_walk_std=0.1, k=k)
+agent00_0 = AgentActionValuerPolicy("agent00_0", SampleAverager(k, default_value=0), EpsilonGreedy(eps=0))
+agent10_0 = AgentActionValuerPolicy("agent10_0", SampleAverager(k, default_value=0), EpsilonGreedy(eps=0.10))
 # erwa = exponential recency-weighted averaging
-# agent10_0_erwa01 = Agent("agent10_0_erwa01", k, eps=0.10, default_value=0, stepsize=lambda n: 0.01)
-# agent10_0_erwa05 = Agent("agent10_0_erwa05", k, eps=0.10, default_value=0, stepsize=lambda n: 0.05)
-# agent10_0_erwa20 = Agent("agent10_0_erwa20", k, eps=0.10, default_value=0, stepsize=lambda n: 0.20)
-# agent10_0_erwa50 = Agent("agent10_0_erwa50", k, eps=0.10, default_value=0, stepsize=lambda n: 0.50)
-# agent10_0_erwa100 = Agent("agent10_0_erwa100", k, eps=0.10, default_value=0, stepsize=lambda n: 1.00)
-# agents = [agent10_0, agent10_0_erwa01, agent10_0_erwa05, agent10_0_erwa20, agent10_0_erwa50, agent10_0_erwa100]
+agent00_0_erwa10 = AgentActionValuerPolicy("agent00_0_erwa10", SampleAverager(k, default_value=0, calc_stepsize=lambda count: 0.1), EpsilonGreedy(eps=0))
+agent10_0_erwa10 = AgentActionValuerPolicy("agent10_0_erwa10", SampleAverager(k, default_value=0, calc_stepsize=lambda count: 0.1), EpsilonGreedy(eps=0.10))
+agents = [agent00_0, agent10_0, agent00_0_erwa10, agent10_0_erwa10]
 
+results3 = run_simulation(max_rollouts, max_time_steps, environment, agents)
 
-reward_results, optimal_action_results = run_simulation(max_rollouts, max_time_steps, environment, agents)
-# %%
-colors = ["green", "red", "blue", "purple", "orange", "brown"]
-color_idx = 0
-
-for agent_name, rewards in reward_results.items():
-    reward_mean = rewards.mean(axis=0)  # Averaged over rollouts
-    reward_std = rewards.std(axis=0, ddof=1)
-    
-    print(agent_name, reward_mean[-1])
-    color = colors[color_idx]
-    color_idx += 1
-    plt.plot(reward_mean, label=agent_name, color=color)
-    # plt.errorbar(np.arange(max_time_steps), reward_rollout_mean, reward_rollout_std, label=agent_name, color=color)
-
-plt.legend()
-plt.show()
-# %%
-color_idx = 0
-for agent_name, optimal_action in optimal_action_results.items():
-    color = colors[color_idx]
-    color_idx += 1
-    optimal_rollout_average = optimal_action.mean(axis=0)
-    plt.plot(optimal_rollout_average, label=agent_name, color=color)
-
-plt.legend()
-plt.show()
-
-# %%
+plot_rollout_mean(results3, "rewards")
+plot_rollout_mean(results3, "optimal_actions")
+plot_action_values(results3, "agent00_0", 0)
+plot_action_values(results3, "agent10_0", 0)
+plot_action_values(results3, "agent00_0_erwa10", 0)
+plot_action_values(results3, "agent10_0_erwa10", 0)
