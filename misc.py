@@ -1,8 +1,9 @@
+
 # %%
 import random
 import numpy as np
 from matplotlib import pyplot as plt
-from main import EnvironmentBandit
+from environments import EnvironmentBandit
 
 def plot_sampled_rewards(num_samples=5,
                          k=10,
