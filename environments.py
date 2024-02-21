@@ -40,6 +40,7 @@ class EnvironmentBandit(Environment):
         self.q_stars_mean = q_stars_mean
         self.q_stars_std = q_stars_std
         self.reward_std = reward_std
+        self.rng = np.random.default_rng()
 
         self.reset()
 
@@ -60,11 +61,8 @@ class EnvironmentBandit(Environment):
     def reset(self):
         self.time_step = None
         self.actions_received = {}
-        self.state_internal = {"q_stars": []}  # List of mean reward for each action (a.k.a. q_star)
-
-        for i in range(self.k):
-            self.state_internal["q_stars"].append(random.gauss(self.q_stars_mean, self.q_stars_std))
-            # TODO: Use numpy to generate q_stars array.
+        # Array of mean reward for each action (a.k.a. q_star)
+        self.state_internal = {"q_stars": self.rng.normal(self.q_stars_mean, self.q_stars_std, self.k)}
     
     def update_time_step(self, time_step):
         self.time_step = time_step
@@ -72,11 +70,10 @@ class EnvironmentBandit(Environment):
     def output_state_internal(self):
         return self.state_internal
     
-    def output_action_optimal(self):
-        action_optimal = np.argmax(self.state_internal["q_stars"])
-        # TODO: Currently returns lowest index optimal action when tied. If action selected is a higher index optimal
-        # action this results in incorrectly being judged as non-optimal. Should return a list or set of optimal actions.
-        return action_optimal
+    def get_all_optimal_actions(self):
+        idxs = np.arange(self.k)
+        optimal_actions = idxs[self.state_internal["q_stars"] == np.max(self.state_internal["q_stars"])]
+        return optimal_actions
 
 
 class EnvironmentBanditNonstationary(EnvironmentBandit):
@@ -85,9 +82,7 @@ class EnvironmentBanditNonstationary(EnvironmentBandit):
         super().__init__(k=k, q_stars_mean=q_stars_mean, q_stars_std=q_stars_std, reward_std=reward_std)
     
     def walk_q_star_randomly(self):
-        for i in range(self.k):
-            self.state_internal["q_stars"][i] += random.gauss(0, self.rand_walk_std)
-            # TODO: Use numpy to generate q_stars random walk
+        self.state_internal["q_stars"] += self.rng.normal(0, self.rand_walk_std, self.k)
     
     def update_time_step(self, time_step):
         if self.time_step is not None:

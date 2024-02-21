@@ -17,6 +17,7 @@ class ActionValuer(ABC):
             return self.action_values[state]
         else:
             return self.action_values[state][action]
+        # TODO: Refactor into 3 separate methods for the 3 different cases.
 
     @abstractmethod
     def reset(self):

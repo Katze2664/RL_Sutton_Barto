@@ -44,6 +44,6 @@ def run_simulation(max_rollouts, max_time_steps, environment, agents):
                 environment.receive_action(agent_name, action)
                 
                 results["actions"][agent_name][rollout, time_step] = action
-                if action == environment.output_action_optimal():
+                if action in environment.get_all_optimal_actions():
                     results["optimal_actions"][agent_name][rollout, time_step] = 1
     return results
