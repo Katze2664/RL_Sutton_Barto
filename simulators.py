@@ -28,19 +28,19 @@ def run_simulation(max_rollouts, max_time_steps, environment, agents):
 
         for time_step in range(max_time_steps):
             environment.update_time_step(time_step)
-            results["q_stars"]["environment"][rollout, time_step] = environment.output_state_internal()["q_stars"]
+            results["q_stars"]["environment"][rollout, time_step] = environment.get_state_internal()["q_stars"]
 
             for agent in agents:
                 agent_name = agent.name
-                state_observed, reward = environment.output_observation(agent_name)
+                state_observed, reward = environment.get_observation(agent_name)
                 agent.receive_observation(state_observed, reward)
 
-                results["action_values"][agent_name][rollout, time_step] = agent.output_action_values(state=state_observed)
+                results["action_values"][agent_name][rollout, time_step] = agent.get_action_values_for_state(state_observed)
 
                 if time_step > 0:
                     results["rewards"][agent_name][rollout, time_step] = reward
                 
-                action = agent.output_action()
+                action = agent.get_action()
                 environment.receive_action(agent_name, action)
                 
                 results["actions"][agent_name][rollout, time_step] = action

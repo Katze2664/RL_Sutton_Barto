@@ -10,7 +10,7 @@ class Agent(ABC):
         pass
 
     @abstractmethod
-    def output_action(self):
+    def get_action(self):
         pass
 
     @abstractmethod
@@ -30,8 +30,8 @@ class AgentActionValuerPolicy(Agent):
         self.state_observed = state_observed
         self.action_valuer.update_action_values(state_observed, self.action, reward)
 
-    def output_action(self):
-        action_values = self.action_valuer.output_action_values()
+    def get_action(self):
+        action_values = self.action_valuer.get_action_values()
         self.action = self.policy.select_action(action_values, self.state_observed)
         return self.action
 
@@ -40,6 +40,12 @@ class AgentActionValuerPolicy(Agent):
         self.state_observed = None
         self.action_valuer.reset()
         self.policy.reset()
+
+    def get_action_values(self):
+        return self.action_valuer.get_action_values()
     
-    def output_action_values(self, state=None, action=None):
-        return self.action_valuer.output_action_values(state, action)
+    def get_action_values_for_state(self, state):
+        return self.action_valuer.get_action_values_for_state(state)
+
+    def get_action_values_for_state_action(self, state, action):
+        return self.action_valuer.get_action_values_for_state_action(state, action)

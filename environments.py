@@ -9,7 +9,7 @@ class Environment(ABC):
         pass
     
     @abstractmethod
-    def output_observation(self, agent_name):
+    def get_observation(self, agent_name):
         pass
     
     @abstractmethod
@@ -44,7 +44,7 @@ class EnvironmentBandit(Environment):
 
         self.reset()
 
-    def output_observation(self, agent_name):
+    def get_observation(self, agent_name):
         state_observable = 0
         if agent_name not in self.actions_received:
             reward = None
@@ -67,7 +67,7 @@ class EnvironmentBandit(Environment):
     def update_time_step(self, time_step):
         self.time_step = time_step
 
-    def output_state_internal(self):
+    def get_state_internal(self):
         return self.state_internal
     
     def get_all_optimal_actions(self):

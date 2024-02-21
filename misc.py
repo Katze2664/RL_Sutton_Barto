@@ -27,11 +27,11 @@ def plot_sampled_rewards(num_samples=5,
         sampled_rewards.append([])
         for i in range(num_samples):
             environment.receive_action(agent_name, action)
-            state_observed, reward = environment.output_observation(agent_name)
+            state_observed, reward = environment.get_observation(agent_name)
             sampled_rewards[action].append(reward)
 
     for action, rewards in enumerate(sampled_rewards):
-        state_internal = environment.output_state_internal()
+        state_internal = environment.get_state_internal()
         plt.plot([action-0.3, action+0.3], [state_internal["q_stars"][action]]*2)  # [state]*2 duplicates y-coordinate
         plt.plot([action]*num_samples, sampled_rewards[action], "o")
     plt.show()
@@ -57,7 +57,7 @@ def mean_maximum_q_star(num_samples=1000,
 
     max_q_stars = []
     for i in range(num_samples):
-        state_internal = environment.output_state_internal()
+        state_internal = environment.get_state_internal()
         q_stars = state_internal["q_stars"]
         max_q_stars.append(max(q_stars))
         environment.reset()

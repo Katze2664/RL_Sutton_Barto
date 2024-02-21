@@ -10,14 +10,16 @@ class ActionValuer(ABC):
         pass
 
     @abstractmethod
-    def output_action_values(self, state=None, action=None):
-        if state is None:
-            return self.action_values
-        elif action is None:
-            return self.action_values[state]
-        else:
-            return self.action_values[state][action]
-        # TODO: Refactor into 3 separate methods for the 3 different cases.
+    def get_action_values(self):
+        return self.action_values
+
+    @abstractmethod
+    def get_action_values_for_state(self, state):
+        return self.action_values[state]
+
+    @abstractmethod
+    def get_action_values_for_state_action(self, state, action):
+        return self.action_values[state][action]
 
     @abstractmethod
     def reset(self):
@@ -48,8 +50,14 @@ class SampleAverager(ActionValuer):
                 q = self.action_values[state][action]
                 self.action_values[state][action] += self.calc_stepsize(n) * (reward - q)
 
-    def output_action_values(self, state=None, action=None):
-        return super().output_action_values(state, action)
+    def get_action_values(self):
+        return super().get_action_values()
+    
+    def get_action_values_for_state(self, state):
+        return super().get_action_values_for_state(state)
+
+    def get_action_values_for_state_action(self, state, action):
+        return super().get_action_values_for_state_action(state, action)
 
     def reset(self):
         self.action_counts = {}
