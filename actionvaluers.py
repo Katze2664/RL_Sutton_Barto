@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+import numpy as np
 
 class ActionValuer(ABC):
     @abstractmethod
@@ -7,6 +8,10 @@ class ActionValuer(ABC):
     
     @abstractmethod
     def update_action_values(self, state, action, reward):
+        pass
+
+    @abstractmethod
+    def reset(self):
         pass
 
     @abstractmethod
@@ -20,10 +25,6 @@ class ActionValuer(ABC):
     @abstractmethod
     def get_action_values_for_state_action(self, state, action):
         return self.action_values[state][action]
-
-    @abstractmethod
-    def reset(self):
-        pass
 
 class SampleAverager(ActionValuer):
     def __init__(self, k, default_value=0, calc_stepsize=None, overwrite_default=False):
@@ -50,6 +51,10 @@ class SampleAverager(ActionValuer):
                 q = self.action_values[state][action]
                 self.action_values[state][action] += self.calc_stepsize(n) * (reward - q)
 
+    def reset(self):
+        self.action_counts = {}
+        self.action_values = {}
+
     def get_action_values(self):
         return super().get_action_values()
     
@@ -59,10 +64,39 @@ class SampleAverager(ActionValuer):
     def get_action_values_for_state_action(self, state, action):
         return super().get_action_values_for_state_action(state, action)
 
-    def reset(self):
-        self.action_counts = {}
-        self.action_values = {}
-
     def set_default_values(self, state):
         self.action_counts[state] = [0] * self.k
         self.action_values[state] = [self.default_value] * self.k
+
+class UCB(SampleAverager):  # UCB = Upper-Confidence-Bound
+    def __init__(self, k, c=1, default_value=0, calc_stepsize=None, overwrite_default=False):
+        super().__init__(k, default_value, calc_stepsize, overwrite_default)
+        self.c = c
+    
+    def update_action_values(self, state, action, reward):
+        super().update_action_values(state, action, reward)
+        if action is not None:
+            self.time_step += 1
+            ns = np.array(self.action_counts[state])
+            qs = np.array(self.action_values[state])
+            upper_confidence_interval = self.c * np.sqrt(np.log(self.time_step) / ns)
+            upper_confidence_interval[ns == 0] = np.inf
+            self.ucbs[state] = qs + upper_confidence_interval
+
+    def reset(self):
+        super().reset()
+        self.time_step = 0
+        self.ucbs = {}
+    
+    def get_action_values(self):
+        return self.ucbs
+    
+    def get_action_values_for_state(self, state):
+        return self.ucbs[state]
+
+    def get_action_values_for_state_action(self, state, action):
+        return self.ucbs[state][action]
+
+    def set_default_values(self, state):
+        super().set_default_values(state)
+        self.ucbs[state] = np.full(self.k, np.inf)
