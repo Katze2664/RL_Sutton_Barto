@@ -35,3 +35,24 @@ class EpsilonGreedy(Policy):
 
     def reset(self):
         pass
+
+class PreferenceSoftmax(ABC):
+    def __init__(self):
+        self.rng = np.random.default_rng()
+    
+    def select_action(self, action_preferences, state=None):
+        if state is not None:
+            action_preferences = action_preferences[state]
+        
+        action_probabilities = self.softmax(action_preferences)
+        action_selected = self.rng.choice(len(action_preferences), p=action_probabilities)
+        return action_selected
+    
+    def reset(self):
+        pass
+
+    def softmax(self, preferences):
+        preferences_normalized = preferences - np.max(preferences) # For numerical stability
+        exp_preferences = np.exp(preferences_normalized)
+        probabilities = exp_preferences / np.sum(exp_preferences)
+        return probabilities

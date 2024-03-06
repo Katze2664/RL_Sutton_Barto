@@ -100,3 +100,55 @@ class UCB(SampleAverager):  # UCB = Upper-Confidence-Bound
     def set_default_values(self, state):
         super().set_default_values(state)
         self.ucbs[state] = np.full(self.k, np.inf)
+
+class PreferenceGradientAscent(ActionValuer):
+    def __init__(self, k, preference_step_size=1.0, baseline_step_size=None):
+        self.k = k
+        self.preference_step_size = preference_step_size
+        if baseline_step_size is None:
+            self.baseline_step_size = lambda time_step: 1 / time_step
+        else:
+            self.baseline_step_size = baseline_step_size
+        self.reset()
+    
+    def update_action_values(self, state, action, reward):
+        if state not in self.action_preferences:
+            self.set_default_values(state)
+        
+        if action is not None:
+            self.time_step += 1
+            if self.time_step == 1:
+                self.baseline = reward  # baseline_1 = reward_1
+
+            indicator = np.zeros(self.k)
+            indicator[action] = 1
+            self.action_preferences[state] += self.preference_step_size * (reward - self.baseline) * (indicator - self.action_probabilities[state])
+            self.action_probabilities[state] = self.softmax(self.action_preferences[state])
+
+            # baseline_(t+1) = weighted average of rewards_1 to rewards_t
+            self.baseline += self.baseline_step_size(self.time_step) * (reward - self.baseline)
+
+    def reset(self):
+        self.time_step = 0
+        self.reward_cumulative = 0
+        self.action_preferences = {}
+        self.action_probabilities = {}
+        
+    def get_action_values(self):
+        return self.action_preferences
+
+    def get_action_values_for_state(self, state):
+        return self.action_preferences[state]
+
+    def get_action_values_for_state_action(self, state, action):
+        return self.action_preferences[state][action]
+
+    def set_default_values(self, state):
+        self.action_preferences[state] = np.zeros(self.k)
+        self.action_probabilities[state] = self.softmax(self.action_preferences[state])
+    
+    def softmax(self, preferences):
+        preferences_normalized = preferences - np.max(preferences) # For numerical stability
+        exp_preferences = np.exp(preferences_normalized)
+        probabilities = exp_preferences / np.sum(exp_preferences)
+        return probabilities
