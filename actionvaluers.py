@@ -102,13 +102,18 @@ class UCB(SampleAverager):  # UCB = Upper-Confidence-Bound
         self.ucbs[state] = np.full(self.k, np.inf)
 
 class PreferenceGradientAscent(ActionValuer):
-    def __init__(self, k, preference_step_size=1.0, baseline_step_size=None):
+    def __init__(self, k, preference_step_size=1.0, baseliner=None, calc_baseliner_step_size=None):
         self.k = k
         self.preference_step_size = preference_step_size
-        if baseline_step_size is None:
-            self.baseline_step_size = lambda time_step: 1 / time_step
+
+        if calc_baseliner_step_size is None:
+            calc_baseliner_step_size = lambda time_step: 1 / time_step
+
+        if baseliner is None:
+            self.baseliner = self.make_sample_average_baseliner(calc_baseliner_step_size)
         else:
-            self.baseline_step_size = baseline_step_size
+            self.baseliner = baseliner
+        
         self.reset()
     
     def update_action_values(self, state, action, reward):
@@ -116,20 +121,13 @@ class PreferenceGradientAscent(ActionValuer):
             self.set_default_values(state)
         
         if action is not None:
-            self.time_step += 1
-            if self.time_step == 1:
-                self.baseline = reward  # baseline_1 = reward_1
-
+            baseline = self.baseliner(reward)
             indicator = np.zeros(self.k)
             indicator[action] = 1
-            self.action_preferences[state] += self.preference_step_size * (reward - self.baseline) * (indicator - self.action_probabilities[state])
+            self.action_preferences[state] += self.preference_step_size * (reward - baseline) * (indicator - self.action_probabilities[state])
             self.action_probabilities[state] = self.softmax(self.action_preferences[state])
 
-            # baseline_(t+1) = weighted average of rewards_1 to rewards_t
-            self.baseline += self.baseline_step_size(self.time_step) * (reward - self.baseline)
-
     def reset(self):
-        self.time_step = 0
         self.reward_cumulative = 0
         self.action_preferences = {}
         self.action_probabilities = {}
@@ -152,3 +150,24 @@ class PreferenceGradientAscent(ActionValuer):
         exp_preferences = np.exp(preferences_normalized)
         probabilities = exp_preferences / np.sum(exp_preferences)
         return probabilities
+    
+    def make_sample_average_baseliner(self, calc_step_size):
+        time_step = 0
+        baseline = None
+        previous_reward = None
+        def sample_average_baseliner(reward):
+            nonlocal time_step
+            nonlocal baseline
+            nonlocal previous_reward
+            time_step += 1
+            if time_step == 1:
+                baseline = reward
+            else:
+                baseline += calc_step_size(time_step - 1) * (previous_reward - baseline)
+            
+            previous_reward = reward
+            return baseline
+        return sample_average_baseliner
+    
+
+        

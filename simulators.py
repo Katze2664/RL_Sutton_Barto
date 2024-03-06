@@ -39,6 +39,8 @@ def run_simulation(max_rollouts, max_time_steps, environment, agents):
 
                 if time_step > 0:
                     results["rewards"][agent_name][rollout, time_step] = reward
+                else:
+                    results["rewards"][agent_name][rollout, time_step] = np.nan
                 
                 action = agent.get_action()
                 environment.receive_action(agent_name, action)
