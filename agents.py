@@ -27,8 +27,9 @@ class AgentActionValuerPolicy(Agent):
         self.reset()
     
     def receive_observation(self, state_observed, reward):
+        state_observed_previous = self.state_observed
         self.state_observed = state_observed
-        self.action_valuer.update_action_values(state_observed, self.action, reward)
+        self.action_valuer.update_action_values(state_observed_previous, self.action, state_observed, reward)
 
     def get_action(self):
         action_values = self.action_valuer.get_action_values()

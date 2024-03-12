@@ -7,7 +7,7 @@ class ActionValuer(ABC):
         pass
     
     @abstractmethod
-    def update_action_values(self, state, action, reward):
+    def update_action_values(self, state_previous, action, state_current, reward):
         pass
 
     @abstractmethod
@@ -37,19 +37,19 @@ class SampleAverager(ActionValuer):
             self.calc_stepsize = calc_stepsize
         self.reset()
     
-    def update_action_values(self, state, action, reward):
-        if state not in self.action_values:
-            self.set_default_values(state)
-
-        if action is not None:
-            if self.action_counts[state][action] == 0 and self.overwrite_default:
-                self.action_counts[state][action] += 1
-                self.action_values[state][action] = reward
+    def update_action_values(self, state_previous, action, state_current, reward):
+        if state_previous is not None:
+            if self.action_counts[state_previous][action] == 0 and self.overwrite_default:
+                self.action_counts[state_previous][action] += 1
+                self.action_values[state_previous][action] = reward
             else:
-                self.action_counts[state][action] += 1
-                n = self.action_counts[state][action]
-                q = self.action_values[state][action]
-                self.action_values[state][action] += self.calc_stepsize(n) * (reward - q)
+                self.action_counts[state_previous][action] += 1
+                n = self.action_counts[state_previous][action]
+                q = self.action_values[state_previous][action]
+                self.action_values[state_previous][action] += self.calc_stepsize(n) * (reward - q)
+
+        if state_current not in self.action_values:
+            self.set_default_values(state_current)
 
     def reset(self):
         self.action_counts = {}
@@ -73,15 +73,15 @@ class UCB(SampleAverager):  # UCB = Upper-Confidence-Bound
         super().__init__(k, default_value, calc_stepsize, overwrite_default)
         self.c = c
     
-    def update_action_values(self, state, action, reward):
-        super().update_action_values(state, action, reward)
-        if action is not None:
+    def update_action_values(self, state_previous, action, state_current, reward):
+        super().update_action_values(state_previous, action, state_current, reward)
+        if state_previous is not None:
             self.time_step += 1
-            ns = np.array(self.action_counts[state])
-            qs = np.array(self.action_values[state])
+            ns = np.array(self.action_counts[state_previous])
+            qs = np.array(self.action_values[state_previous])
             upper_confidence_interval = self.c * np.sqrt(np.log(self.time_step) / ns)
             upper_confidence_interval[ns == 0] = np.inf
-            self.ucbs[state] = qs + upper_confidence_interval
+            self.ucbs[state_previous] = qs + upper_confidence_interval
 
     def reset(self):
         super().reset()
@@ -116,16 +116,16 @@ class PreferenceGradientAscent(ActionValuer):
         
         self.reset()
     
-    def update_action_values(self, state, action, reward):
-        if state not in self.action_preferences:
-            self.set_default_values(state)
-        
-        if action is not None:
+    def update_action_values(self, state_previous, action, state_current, reward):
+        if state_previous is not None:
             baseline = self.baseliner(reward)
             indicator = np.zeros(self.k)
             indicator[action] = 1
-            self.action_preferences[state] += self.preference_step_size * (reward - baseline) * (indicator - self.action_probabilities[state])
-            self.action_probabilities[state] = self.softmax(self.action_preferences[state])
+            self.action_preferences[state_previous] += self.preference_step_size * (reward - baseline) * (indicator - self.action_probabilities[state_previous])
+            self.action_probabilities[state_previous] = self.softmax(self.action_preferences[state_previous])
+
+        if state_current not in self.action_preferences:
+            self.set_default_values(state_current)
 
     def reset(self):
         self.reward_cumulative = 0

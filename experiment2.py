@@ -1,16 +1,19 @@
 
 # %%
+import time
 import numpy as np
 from environments import EnvironmentBandit
 from agents import AgentActionValuerPolicy
 from actionvaluers import SampleAverager
 from policies import EpsilonGreedy
 from simulators import run_simulation
-from plotters import plot_rollout_mean, plot_action_values
+from plotters import plot_episode_mean, plot_action_values
+
+start_time = time.time()
 
 k = 10  # Number of actions the Agent can choose from
-max_rollouts = 200  # Number of rollouts. Each rollout the Agent and Environment are reset
-max_time_steps = 1000  # Number of time steps per rollout
+max_episodes = 200  # Number of episodes. Each episode the Agent and Environment are reset
+max_time_steps = 1000  # Number of time steps per episode
 
 # Independent variable: default_value
 
@@ -20,18 +23,20 @@ max_time_steps = 1000  # Number of time steps per rollout
 # value. If the default value is too high then exploration of poor actions persists for too long. If the default value
 # is too low then the first high reward terminates exploration.
 
-environment = EnvironmentBandit(k)
+environment = EnvironmentBandit(k=k)
 agent00_0 = AgentActionValuerPolicy("agent00_0", SampleAverager(k, default_value=0), EpsilonGreedy(eps=0))
 agent00_inf = AgentActionValuerPolicy("agent00_inf", SampleAverager(k, default_value=np.inf, overwrite_default=True), EpsilonGreedy(eps=0))
 agent00_10 = AgentActionValuerPolicy("agent00_10", SampleAverager(k, default_value=10, calc_stepsize=lambda count: 1 / (count + 1)), EpsilonGreedy(eps=0))
 agents = [agent00_0, agent00_inf, agent00_10]
 
-results2 = run_simulation(max_rollouts, max_time_steps, environment, agents)
+results2 = run_simulation(max_episodes, max_time_steps, environment, agents)
 
-plot_rollout_mean(results2, "rewards")
-plot_rollout_mean(results2, "optimal_actions")
-plot_action_values(results2, "agent00_0", rollout=0)
-plot_action_values(results2, "agent00_inf", rollout=0)
-plot_action_values(results2, "agent00_10", rollout=0)
+print(time.time() - start_time) # 200 episodes, 1000 time steps = 95 seconds
+
+plot_episode_mean(results2, "rewards")
+plot_episode_mean(results2, "optimal_actions")
+plot_action_values(results2, "agent00_0", episode=0)
+plot_action_values(results2, "agent00_inf", episode=0)
+plot_action_values(results2, "agent00_10", episode=0)
 
 # %%
