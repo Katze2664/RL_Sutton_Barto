@@ -2,6 +2,8 @@
 # %%
 import time
 import numpy as np
+import json
+import os
 import matplotlib.pyplot as plt
 from environments import EnvironmentBandit
 from agents import AgentActionValuerPolicy
@@ -9,7 +11,7 @@ from actionvaluers import SampleAverager, PreferenceGradientAscent, UCB
 from policies import EpsilonGreedy, PreferenceSoftmax
 from simulators import run_simulation
 from plotters import plot_episode_mean, plot_action_values
-
+# %%
 # Based on Chapter 2.10 - Summary (page 42) of
 # Reinforcement Learning: An Introduction (2nd ed) by Sutton and Barto
 # Recreates Figure 2.6 on page 42
@@ -20,10 +22,10 @@ max_time_steps = 1000  # Number of time steps per episode
 
 # Parameter study: eps, preference_step_size, c, default_value
 
-param_ranges = [("eps", np.arange(-7, -1)),
-                ("pref", np.arange(-5, 5)),
-                ("ucb", np.arange(-4, 5)),
-                ("default", np.arange(-2, 5))]
+param_ranges = [("eps", list(range(-7, -1))),
+                ("pref", list(range(-5, 3))),
+                ("ucb", list(range(-4, 3))),
+                ("default", list(range(-2, 3)))]
 
 params = []
 for param_name, param_range in param_ranges:
@@ -41,20 +43,20 @@ for param_name, agent_name, param_log_value in params:
     elif param_name == "ucb":
         agent = AgentActionValuerPolicy(agent_name, UCB(k, c=param_value), EpsilonGreedy())
     elif param_name == "default":
-        agent = AgentActionValuerPolicy(agent_name, SampleAverager(k, default_value=param_value), EpsilonGreedy())
+        agent = AgentActionValuerPolicy(agent_name, SampleAverager(k, default_value=param_value, calc_stepsize=lambda time_step: 0.1), EpsilonGreedy())
     else:
-        assert False, f"{param_name=} not recognised"
+        raise Exception(f"{param_name=} not recognised")
     agents.append(agent)
-# %%
+
 start_time = time.time()
 
 environment = EnvironmentBandit(k=k)
 results9 = run_simulation(max_episodes, max_time_steps, environment, agents)
 
-print(time.time() - start_time) # 200 episodes, 1000 time steps = 710 seconds
+print(time.time() - start_time) # 200 episodes, 1000 time steps = 930 seconds
 
-# %%
-# Plot Parameter Study
+# Extract Parameter Study results (param_results)
+
 param_results = {}
 for param_name, agent_name, param_log_value in params:
     mean_reward = results9["rewards"][agent_name][:, 1:].mean()  # rewards[:, 1:] because reward is NaN for time_step==0
@@ -63,26 +65,66 @@ for param_name, agent_name, param_log_value in params:
     param_results[param_name]["param_log_values"].append(param_log_value)
     param_results[param_name]["mean_rewards"].append(mean_reward)
 
+
+def save(obj, file_name):
+    with open(file_name, "w") as f:
+        f.write(json.dumps(obj))
+
+def load(file_name):
+    with open(file_name, "r") as f:
+        obj = json.loads(f.read())
+    return obj
+
+# %%
+file_name = "results/exp9_param_results_e200_t1000.json"
+
+# %%
+# Save param_results
+if os.path.isfile(file_name):
+    print(f"{file_name=}")
+    user = input("Do you want to overwrite this file? (Y or N)")
+    if user.lower() in ["y", "yes"]:
+        save(param_results, file_name)
+    else:
+        print("Cancelled")
+else:
+    save(param_results, file_name)
+
+# %%
+# Load param_results
+print(f"{file_name=}")
+user = input("Do you want to load this file? (Y or N)")
+if user.lower() in ["y", "yes"]:
+    param_results = load(file_name)
+else:
+    print("Cancelled")
+
+# %%
+# Plot Parameter Study (param_results)
 colors = ["red", "green", "blue", "black"]
 color_idx = 0
 for param_name, results in param_results.items():
     x = results["param_log_values"]
     y = results["mean_rewards"]
-    print(param_name, x, y)
+    print(param_name)
+    print(np.vstack((x, np.round(y, 2))))
     plt.plot(x, y, label=param_name, color=colors[color_idx])
     color_idx += 1
 plt.legend()
 plt.title("Parameter Study")
 plt.xlabel("Parameter Value (log_2)")
 plt.ylabel("Mean Reward")
+xticks_min = -7
+xticks_max = 2
+xticks = np.arange(xticks_min, xticks_max + 1)
+xtick_labels = []
+for xtick in xticks:
+    if xtick < 0:
+        xtick_labels.append("1/" + str(2**-xtick))
+    else:
+        xtick_labels.append(str(2**xtick))
+plt.xticks(ticks=xticks, labels=xtick_labels)
 plt.show()
-
-# param_results:
-# param_name, x=param_log_values, y=mean_rewards
-# eps [-7, -6, -5, -4, -3, -2] [1.19725312159883, 1.233054244258382, 1.3404420615652575, 1.3373701202858648, 1.2849020692038038, 1.1201984674775416]
-# pref [-5, -4, -3, -2, -1, 0, 1, 2, 3, 4] [1.1145277392177715, 1.299526737931388, 1.4067677292635827, 1.4352986072754528, 1.4376034085825316, 1.3620266421232075, 1.2863169614945231, 1.2027431619580926, 0.973940545257757, 0.9947662853888716]
-# ucb [-4, -3, -2, -1, 0, 1, 2, 3, 4] [1.4355616479752398, 1.4583922155002884, 1.456788574381008, 1.4863341665824827, 1.488427191744514, 1.4024638733025834, 1.1705673401268917, 0.7906636021847854, 0.42957850374616435]
-# default [-2, -1, 0, 1, 2, 3, 4] [1.1444635238454484, 1.2377586095792479, 1.3967231239180242, 1.3963051600306753, 1.3901791909475145, 1.4433504682556124, 1.417506774487564]
 
 # %%
 # Plot learning curves
@@ -118,3 +160,5 @@ for param_name, agent_name, param_log_value in params:
     if ("all" in select_param) or (param_name in select_param):
         if ("all" in select_value) or (param_log_value in select_value):
             plot_action_values(results9, agent_name, episode)
+
+# %%
