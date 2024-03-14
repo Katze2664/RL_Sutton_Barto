@@ -1,12 +1,23 @@
 
 # %%
+import os
+import sys
+from pathlib import Path
+
+ROOT_DIR = "RL_Sutton_Barto"
+path = Path(os.path.abspath(__file__))
+assert ROOT_DIR in path.parts, f"{ROOT_DIR=} not found in {path=}"
+for part in Path(os.path.abspath(__file__)).parents:
+    if part.stem == ROOT_DIR and str(part) not in sys.path:
+        sys.path.insert(0, str(part))
+
 import time
 from environments import EnvironmentBandit
 from agents import AgentActionValuerPolicy
 from actionvaluers import PreferenceGradientAscent
 from policies import PreferenceSoftmax
 from simulators import run_simulation
-from plotters import plot_episode_mean, plot_action_values
+from plotters import plot_episode_mean, plot_selected_action_values
 
 # Based on Chapter 2.8 - Gradient Bandit Algorithms (page 37) of
 # Reinforcement Learning: An Introduction (2nd ed) by Sutton and Barto
@@ -47,8 +58,8 @@ print(time.time() - start_time) # 200 episodes, 1000 time steps = 79 seconds
 
 plot_episode_mean(results7, "rewards")
 plot_episode_mean(results7, "optimal_actions")
-plot_action_values(results7, "agent_pga01", 0)
-plot_action_values(results7, "agent_pga04", 0)
-plot_action_values(results7, "agent_pga01_0", 0)
-plot_action_values(results7, "agent_pga04_0", 0)
+plot_selected_action_values(results7, "agent_pga01", 0)
+plot_selected_action_values(results7, "agent_pga04", 0)
+plot_selected_action_values(results7, "agent_pga01_0", 0)
+plot_selected_action_values(results7, "agent_pga04_0", 0)
 # %%

@@ -1,5 +1,16 @@
 
 # %%
+import os
+import sys
+from pathlib import Path
+
+ROOT_DIR = "RL_Sutton_Barto"
+path = Path(os.path.abspath(__file__))
+assert ROOT_DIR in path.parts, f"{ROOT_DIR=} not found in {path=}"
+for part in Path(os.path.abspath(__file__)).parents:
+    if part.stem == ROOT_DIR and str(part) not in sys.path:
+        sys.path.insert(0, str(part))
+
 import time
 from environments import EnvironmentBanditManual
 from agents import AgentActionValuerPolicy
